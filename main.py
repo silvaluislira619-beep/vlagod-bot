@@ -41,5 +41,7 @@ def responder(message):
         bot.reply_to(message, "Buguei aqui, mimir. Manda dnv que já resolvo.")
 
 if __name__ == "__main__":
-    bot.delete_webhook()  # Mata sessões fantasmas
-    bot.infinity_polling(skip_pending=True)  # Ignora msgs antigas e evita conflito
+    print(">>> VLAGOD iniciando, matando clones...")
+    bot.remove_webhook()  # Mata webhook fantasma
+    time.sleep(1)         # Respira 1s
+    bot.infinity_polling(skip_pending=True, timeout=10) # Ignora msgs antigas e roda
