@@ -10,7 +10,7 @@ from threading import Lock
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '').strip()
 GEMINI_KEY = os.environ.get('GEMINI_KEY', '').strip()
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL', '').strip()
-ID_DO_MIMIR = 8039269030 # TROCA DEPOIS QUE O /id FUNCIONAR
+ID_DO_MIMIR = 8039269030
 
 print(f">>> INICIANDO VLAGOD...", flush=True)
 print(f">>> TOKEN USADO: {TELEGRAM_TOKEN[:10]}...{TELEGRAM_TOKEN[-4:]}", flush=True)
@@ -65,19 +65,29 @@ COOLDOWNS = carregar_json(COOLDOWN_FILE, {})
 
 def eh_vip(user_id): return user_id in IDS_VIP
 
-# ================= WEBHOOK - COM PROTEÇÃO CONTRA 429 =================
+# ================= FUNÇÃO DO GEMINI - TEM QUE VIR ANTES DOS HANDLERS =================
+def call_gemini(prompt):
+    if not model: return "Buguei. Gemini não configurou."
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f">>> ERRO GEMINI: {e}", flush=True)
+        return "Buguei."
+
+# ================= WEBHOOK =================
 @app.route("/")
 def webhook_setup():
     try:
         info = bot.get_webhook_info()
-        if info.url: # Se já tem webhook, não seta de novo
+        if info.url:
             print(f">>> WEBHOOK JA EXISTE: {info.url}", flush=True)
             return f"VLAGOD ONLINE - WEBHOOK JA SETADO: {info.url}", 200
 
         url_completa = f"{WEBHOOK_URL}/{TELEGRAM_TOKEN}"
         sucesso = bot.set_webhook(url=url_completa)
         print(f">>> WEBHOOK SETADO PARA {url_completa}: {sucesso}", flush=True)
-        return f"VLAGOD V3.6.2 ONLINE - WEBHOOK: {sucesso}", 200
+        return f"VLAGOD V3.6.3 ONLINE - WEBHOOK: {sucesso}", 200
     except Exception as e:
         print(f">>> ERRO AO SETAR WEBHOOK: {e}", flush=True)
         return f"ERRO: {e}", 500
@@ -89,7 +99,6 @@ def getMessage():
         print(f">>> UPDATE RECEBIDO: {json_string[:500]}", flush=True)
         update = telebot.types.Update.de_json(json_string)
 
-        # DEBUG BRUTO DO QUE CHEGOU
         if update.message:
             print(f">>> TIPO: {update.message.content_type}", flush=True)
             print(f">>> TEXTO: '{update.message.text}'", flush=True)
@@ -123,7 +132,7 @@ def send_welcome(message):
         if not eh_vip(user_id):
             print(f">>> {user_id} NAO EH VIP", flush=True)
             return
-        bot.reply_to(message, "VLAGOD V3.6.2 ONLINE. Manda a letra, Mimir.")
+        bot.reply_to(message, "VLAGOD V3.6.3 ONLINE. Manda a letra, Mimir.")
     except Exception as e:
         print(f">>> ERRO NO /start: {e}", flush=True)
 
@@ -147,20 +156,17 @@ def responder_geral(message):
             print(f">>> {user_id} NAO EH VIP - IGNORADO", flush=True)
             return
 
-        # Checa Cooldown
         agora = time.time()
         cooldown = COOLDOWN_MIMIR if user_id == ID_DO_MIMIR else COOLDOWN_VIP
         if agora - COOLDOWNS.get(str(user_id), 0) < cooldown:
             print(f">>> {user_id} EM COOLDOWN", flush=True)
             return
 
-        # Checa Cache
         texto = message.text
         if texto in CACHE_RESPOSTAS:
             bot.reply_to(message, CACHE_RESPOSTAS[texto])
             return
 
-        # Chama Gemini
         prompt = PERSONALIDADES.get(str(user_id), "Responde de forma direta e sarcástica.")
         prompt += f"\n\nPergunta: {texto}"
         resposta = call_gemini(prompt)
