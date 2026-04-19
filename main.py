@@ -7,11 +7,10 @@ from flask import Flask, request
 from threading import Lock
 
 # ================= CONFIG E INICIALIZAÇÃO =================
-# Pega variáveis e já tira espaço/enter invisível
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '').strip()
 GEMINI_KEY = os.environ.get('GEMINI_KEY', '').strip()
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL', '').strip()
-ID_DO_MIMIR = 8039269030 # TROCA PELO TEU ID DEPOIS QUE O /id FUNCIONAR
+ID_DO_MIMIR = 8039269030 # TROCA DEPOIS QUE O /id FUNCIONAR
 
 print(f">>> INICIANDO VLAGOD...", flush=True)
 print(f">>> TOKEN USADO: {TELEGRAM_TOKEN[:10]}...{TELEGRAM_TOKEN[-4:]}", flush=True)
@@ -20,7 +19,7 @@ print(f">>> WEBHOOK_URL: {WEBHOOK_URL}", flush=True)
 if not TELEGRAM_TOKEN or not GEMINI_KEY or not WEBHOOK_URL:
     print(">>> ERRO FATAL: VARIAVEL DE AMBIENTE FALTANDO", flush=True)
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False) # threaded=False é obrigatório pra webhook
 app = Flask(__name__)
 
 # Config Gemini
@@ -83,8 +82,19 @@ def webhook_setup():
 def getMessage():
     try:
         json_string = request.get_data().decode('utf-8')
-        print(f">>> UPDATE RECEBIDO: {json_string[:150]}", flush=True)
+        print(f">>> UPDATE RECEBIDO: {json_string[:400]}", flush=True)
         update = telebot.types.Update.de_json(json_string)
+
+        # DEBUG BRUTO DO QUE CHEGOU
+        if update.message:
+            print(f">>> TIPO: {update.message.content_type}", flush=True)
+            print(f">>> TEXTO: '{update.message.text}'", flush=True)
+            print(f">>> ENTITIES: {update.message.entities}", flush=True)
+        elif update.edited_message:
+            print(f">>> EDITED_MSG: '{update.edited_message.text}'", flush=True)
+        else:
+            print(">>> UPDATE SEM MESSAGE", flush=True)
+
         bot.process_new_updates([update])
         print(">>> UPDATE PROCESSADO", flush=True)
         return "!", 200
@@ -102,12 +112,12 @@ def call_gemini(prompt):
         print(f">>> ERRO GEMINI: {e}", flush=True)
         return "Buguei."
 
-# ================= HANDLERS =================
+# ================= HANDLERS - COMANDOS PRIMEIRO =================
 @bot.message_handler(commands=['id'])
 def pegar_id(message):
     try:
         print(f">>> /id chamado por {message.from_user.id}", flush=True)
-        bot.reply_to(message, f"Teu ID: `{message.from_user.id}`")
+        bot.reply_to(message, f"Teu ID: `{message.from_user.id}`", parse_mode='Markdown')
     except Exception as e:
         print(f">>> ERRO NO /id: {e}", flush=True)
 
@@ -133,16 +143,21 @@ def debug(message):
     except Exception as e:
         print(f">>> ERRO NO /debug: {e}", flush=True)
 
-@bot.message_handler(func=lambda message: True)
+# ================= HANDLER GERAL - POR ÚLTIMO =================
+@bot.message_handler(content_types=['text'])
 def responder_geral(message):
     try:
         user_id = message.from_user.id
-        if not eh_vip(user_id): return
+        print(f">>> MSG NORMAL DE {user_id}: {message.text}", flush=True)
+        if not eh_vip(user_id):
+            print(f">>> {user_id} NAO EH VIP - IGNORADO", flush=True)
+            return
 
         # Checa Cooldown
         agora = time.time()
         cooldown = COOLDOWN_MIMIR if user_id == ID_DO_MIMIR else COOLDOWN_VIP
         if agora - COOLDOWNS.get(str(user_id), 0) < cooldown:
+            print(f">>> {user_id} EM COOLDOWN", flush=True)
             return
 
         # Checa Cache
