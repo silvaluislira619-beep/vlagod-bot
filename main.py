@@ -40,4 +40,6 @@ def responder(message):
         print(e)
         bot.reply_to(message, "Buguei aqui, mimir. Manda dnv que já resolvo.")
 
-bot.infinity_polling()
+if __name__ == "__main__":
+    bot.delete_webhook()  # Mata sessões fantasmas
+    bot.infinity_polling(skip_pending=True)  # Ignora msgs antigas e evita conflito
