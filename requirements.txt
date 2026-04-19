@@ -1,7 +1,5 @@
 pyTelegramBotAPI==4.14.0
-google-generativeai==0.5.4
+google-generativeai==0.8.3
 Flask==3.0.3
-requests==2.31.0
-yt-dlp
-gunicorn==21.2.0
-cachetools==5.3.3
+requests==2.32.3
+yt-dlp==2024.8.6
