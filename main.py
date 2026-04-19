@@ -43,26 +43,28 @@ def responder(message):
 if __name__ == "__main__":
     print(">>> VLAGOD iniciando, matando clones...")
     
-    # Mata webhook e espera qualquer processo zumbi morrer
+    # Mata webhook e espera processo zumbi morrer
     try:
         bot.remove_webhook()
-    except:
-        pass
-    time.sleep(3) # Aumenta pra 3s
+    except Exception as e:
+        print(f"Webhook já estava morto: {e}")
     
-    # Liga o servidor fake numa thread separada
+    time.sleep(5) # Espera 5s pra garantir
+    
+    # Liga o servidor fake pro Render não matar o processo
     Thread(target=run_flask).start()
     
-    # Liga o bot com retry automático se tiver clone
+    # Liga o bot com retry infinito contra clones
     while True:
         try:
             print(">>> Iniciando polling...")
-            bot.infinity_polling(skip_pending=True, timeout=20)
+            bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
+            break # Se chegou aqui, rodou de boa e pode sair do loop
         except Exception as e:
             print(f"ERRO DE POLLING: {e}")
             if "409" in str(e):
-                print(">>> Clone detectado. Esperando 10s pra tentar de novo...")
-                time.sleep(10)
+                print(">>> Clone detectado. Esperando 15s pra tentar de novo...")
+                time.sleep(15) # Espera 15s e tenta de novo
             else:
-                # Se for outro erro, sai do loop
+                print(">>> Erro não é de clone. Parando.")
                 break
