@@ -19,7 +19,7 @@ print(f">>> WEBHOOK_URL: {WEBHOOK_URL}", flush=True)
 if not TELEGRAM_TOKEN or not GEMINI_KEY or not WEBHOOK_URL:
     print(">>> ERRO FATAL: VARIAVEL DE AMBIENTE FALTANDO", flush=True)
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False) # threaded=False é obrigatório pra webhook
+bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 app = Flask(__name__)
 
 # Config Gemini
@@ -65,15 +65,19 @@ COOLDOWNS = carregar_json(COOLDOWN_FILE, {})
 
 def eh_vip(user_id): return user_id in IDS_VIP
 
-# ================= WEBHOOK =================
+# ================= WEBHOOK - COM PROTEÇÃO CONTRA 429 =================
 @app.route("/")
 def webhook_setup():
     try:
-        bot.remove_webhook()
+        info = bot.get_webhook_info()
+        if info.url: # Se já tem webhook, não seta de novo
+            print(f">>> WEBHOOK JA EXISTE: {info.url}", flush=True)
+            return f"VLAGOD ONLINE - WEBHOOK JA SETADO: {info.url}", 200
+
         url_completa = f"{WEBHOOK_URL}/{TELEGRAM_TOKEN}"
         sucesso = bot.set_webhook(url=url_completa)
         print(f">>> WEBHOOK SETADO PARA {url_completa}: {sucesso}", flush=True)
-        return f"VLAGOD V3.6.1 ONLINE - WEBHOOK: {sucesso}", 200
+        return f"VLAGOD V3.6.2 ONLINE - WEBHOOK: {sucesso}", 200
     except Exception as e:
         print(f">>> ERRO AO SETAR WEBHOOK: {e}", flush=True)
         return f"ERRO: {e}", 500
@@ -82,7 +86,7 @@ def webhook_setup():
 def getMessage():
     try:
         json_string = request.get_data().decode('utf-8')
-        print(f">>> UPDATE RECEBIDO: {json_string[:400]}", flush=True)
+        print(f">>> UPDATE RECEBIDO: {json_string[:500]}", flush=True)
         update = telebot.types.Update.de_json(json_string)
 
         # DEBUG BRUTO DO QUE CHEGOU
@@ -102,16 +106,6 @@ def getMessage():
         print(f">>> CRASH NO WEBHOOK: {e}", flush=True)
         return "!", 200
 
-# ================= FUNÇÕES DO BOT =================
-def call_gemini(prompt):
-    if not model: return "Buguei. Gemini não configurou."
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f">>> ERRO GEMINI: {e}", flush=True)
-        return "Buguei."
-
 # ================= HANDLERS - COMANDOS PRIMEIRO =================
 @bot.message_handler(commands=['id'])
 def pegar_id(message):
@@ -129,7 +123,7 @@ def send_welcome(message):
         if not eh_vip(user_id):
             print(f">>> {user_id} NAO EH VIP", flush=True)
             return
-        bot.reply_to(message, "VLAGOD V3.6.1 ONLINE. Manda a letra, Mimir.")
+        bot.reply_to(message, "VLAGOD V3.6.2 ONLINE. Manda a letra, Mimir.")
     except Exception as e:
         print(f">>> ERRO NO /start: {e}", flush=True)
 
