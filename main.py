@@ -22,11 +22,40 @@ if not TELEGRAM_TOKEN or not GEMINI_KEY or not WEBHOOK_URL:
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 app = Flask(__name__)
 
-# Config Gemini
+# ================= CONFIG GEMINI COM AUTO-DETECÇÃO DE MODELO =================
+model = None
 try:
     genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    print(">>> GEMINI CONFIGURADO", flush=True)
+
+    # Pega a lista de modelos disponíveis pra tua key
+    modelos_disponiveis = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    print(f">>> MODELOS DISPONIVEIS: {modelos_disponiveis}", flush=True)
+
+    # Prioridade: tenta o mais rápido/barato primeiro
+    modelos_preferidos = [
+        'models/gemini-1.5-flash-latest',
+        'models/gemini-1.5-flash-001',
+        'models/gemini-1.5-flash',
+        'models/gemini-1.5-pro-latest',
+        'models/gemini-pro',
+        'models/gemini-1.0-pro'
+    ]
+
+    nome_modelo_usado = None
+    for nome in modelos_preferidos:
+        if nome in modelos_disponiveis:
+            nome_modelo_usado = nome
+            break
+
+    if not nome_modelo_usado and modelos_disponiveis:
+        nome_modelo_usado = modelos_disponiveis[0] # Pega o primeiro que tiver
+
+    if nome_modelo_usado:
+        model = genai.GenerativeModel(nome_modelo_usado)
+        print(f">>> GEMINI CONFIGURADO COM: {nome_modelo_usado}", flush=True)
+    else:
+        raise Exception("Nenhum modelo compativel encontrado para generateContent")
+
 except Exception as e:
     print(f">>> ERRO GEMINI: {e}", flush=True)
     model = None
@@ -65,7 +94,7 @@ COOLDOWNS = carregar_json(COOLDOWN_FILE, {})
 
 def eh_vip(user_id): return user_id in IDS_VIP
 
-# ================= FUNÇÃO DO GEMINI - TEM QUE VIR ANTES DOS HANDLERS =================
+# ================= FUNÇÃO DO GEMINI =================
 def call_gemini(prompt):
     if not model: return "Buguei. Gemini não configurou."
     try:
@@ -87,7 +116,7 @@ def webhook_setup():
         url_completa = f"{WEBHOOK_URL}/{TELEGRAM_TOKEN}"
         sucesso = bot.set_webhook(url=url_completa)
         print(f">>> WEBHOOK SETADO PARA {url_completa}: {sucesso}", flush=True)
-        return f"VLAGOD V3.6.3 ONLINE - WEBHOOK: {sucesso}", 200
+        return f"VLAGOD V3.7.0 ONLINE - WEBHOOK: {sucesso}", 200
     except Exception as e:
         print(f">>> ERRO AO SETAR WEBHOOK: {e}", flush=True)
         return f"ERRO: {e}", 500
@@ -132,7 +161,7 @@ def send_welcome(message):
         if not eh_vip(user_id):
             print(f">>> {user_id} NAO EH VIP", flush=True)
             return
-        bot.reply_to(message, "VLAGOD V3.6.3 ONLINE. Manda a letra, Mimir.")
+        bot.reply_to(message, "VLAGOD V3.7.0 ONLINE. Manda a letra, Mimir.")
     except Exception as e:
         print(f">>> ERRO NO /start: {e}", flush=True)
 
