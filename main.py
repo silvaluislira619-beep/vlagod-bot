@@ -12,7 +12,7 @@ ID_DO_MIMIR = 8039269030
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # --- SERVIDOR FAKE PRO RENDER NÃO MATAR O PROCESSO ---
 app = Flask('')
