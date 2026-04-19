@@ -13,7 +13,7 @@ ID_DO_MIMIR = 8039269030
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 model = None # Inicia como None pra não crashar no import
 
-# --- SERVIDOR FAKE PRO RENDER NÃO MATAR O PROCESSO ---
+# --- SERVIDOR FAKE PRO RENDER ---
 app = Flask('')
 
 @app.route('/')
@@ -32,7 +32,7 @@ def responder(message):
             return
         
         if model is None:
-            bot.reply_to(message, "Minha alma da Gemini ainda não acordou, mimir. Checa a chave no Render.")
+            bot.reply_to(message, "Minha alma da Gemini ainda não acordou, mimir. Checa os logs do Render.")
             return
             
         prompt = f"Você é a VLAGOD, IA caótica e parceira do Mimir. Responda de forma curta, debochada e genial: {message.text}"
@@ -47,36 +47,56 @@ def responder(message):
 if __name__ == "__main__":
     print(">>> VLAGOD iniciando, matando clones...", flush=True)
     
-    # Configura a Gemini AQUI DENTRO, pra dar erro só depois dos prints
+    # Configura a Gemini e lista os modelos se der erro
     try:
         genai.configure(api_key=GEMINI_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest') # MODELO ATUAL DE 2026
-        print(">>> Alma da Gemini configurada.", flush=True)
+        
+        # TENTA OS NOMES MAIS COMUNS DE 2026 EM ORDEM
+        modelos_tentativa = [
+            'gemini-2.0-flash', 
+            'gemini-1.5-flash-002',
+            'gemini-1.5-flash-latest',
+            'gemini-flash-latest'
+        ]
+        
+        for nome_modelo in modelos_tentativa:
+            try:
+                model = genai.GenerativeModel(nome_modelo)
+                print(f">>> Alma da Gemini configurada com: {nome_modelo}", flush=True)
+                break # Se deu certo, para o loop
+            except Exception as e:
+                print(f">>> Modelo {nome_modelo} falhou: {e}", flush=True)
+                continue
+        
+        if model is None:
+            print(">>> NENHUM MODELO FUNCIONOU. Listando modelos disponíveis:", flush=True)
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    print(f">>> Modelo disponível: {m.name}", flush=True)
+
     except Exception as e:
         print(f"ERRO AO CONFIGURAR GEMINI: {e}", flush=True)
     
-    # Mata webhook e espera processo zumbi morrer
+    # Mata webhook
     try:
         bot.remove_webhook()
     except Exception as e:
         print(f"Webhook já estava morto: {e}", flush=True)
     
-    time.sleep(5) # Espera 5s pra garantir
+    time.sleep(5)
     
-    # Liga o servidor fake pro Render não matar o processo
     Thread(target=run_flask).start()
     
-    # Liga o bot com retry infinito contra clones
     while True:
         try:
             print(">>> Iniciando polling...", flush=True)
             bot.infinity_polling(skip_pending=True, timeout=20)
-            break # Se chegou aqui, rodou de boa e pode sair do loop
+            break
         except Exception as e:
             print(f"ERRO DE POLLING: {e}", flush=True)
             if "409" in str(e):
                 print(">>> Clone detectado. Esperando 15s pra tentar de novo...", flush=True)
-                time.sleep(15) # Espera 15s e tenta de novo
+                time.sleep(15)
             else:
                 print(">>> Erro não é de clone. Parando.", flush=True)
                 break
