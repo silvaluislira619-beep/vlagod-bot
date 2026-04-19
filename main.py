@@ -46,8 +46,22 @@ HISTORICO_MERCADO = carregar_json(HISTORICO_MERCADO_FILE, [])
 # --- SERVIDOR FAKE PRO RENDER ---
 app = Flask('')
 @app.route('/')
-def home(): return "VLAGOD V3.3 ONLINE."
+def home(): return "VLAGOD V3.4 ONLINE - BLINDADA."
 def run_flask(): app.run(host='0.0.0.0',port=8080)
+
+# --- INICIALIZA GEMINI COM TRATAMENTO ---
+def iniciar_gemini():
+    global model
+    try:
+        if not GEMINI_KEY:
+            print(">>> AVISO: GEMINI_KEY não configurada. Comandos de IA offline.", flush=True)
+            return
+        genai.configure(api_key=GEMINI_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        print(">>> Gemini 1.5-flash conectado.", flush=True)
+    except Exception as e:
+        print(f">>> ERRO AO CONECTAR GEMINI: {e}", flush=True)
+        model = None
 
 # --- FUNÇÕES DE CHECAGEM ---
 def eh_vip(user_id):
@@ -143,7 +157,7 @@ def download_yt(message):
                 '--max-filesize', '49m',
                 url
             ]
-        else: # audio
+        else:
             comando = [
                 'yt-dlp',
                 '-f', 'bestaudio/best',
@@ -293,7 +307,10 @@ def ideia_renda(message):
         response = model.generate_content(prompt)
         bot.reply_to(message, f"Anota aí, {message.from_user.first_name}. 3 jeitos de tirar dinheiro disso:\n\n{response.text}")
     except Exception as e:
-        bot.reply_to(message, "Buguei na hora de ficar rico. Tenta de novo.")
+        if "quota" in str(e).lower() or "429" in str(e):
+            bot.reply_to(message, "Estourei a cota da Gemini. Espera 1min e tenta de novo.")
+        else:
+            bot.reply_to(message, "Buguei na hora de ficar rico. Tenta de novo.")
 
 @bot.message_handler(commands=['trampo'])
 def trampo_do_dia(message):
@@ -373,7 +390,10 @@ def divulgar_link(message):
         link_final = LINKS
         bot.reply_to(message, f"Copy pronta pra colar nos grupos, {message.from_user.first_name}:\n\n---\n{copy}\n\nLink: {link_final}\n---\n\nQuando fechar cadastro, manda /cadastrei que eu conto ponto pra ti.")
     except Exception as e:
-        bot.reply_to(message, "Buguei na hora de criar a copy. Tenta de novo.")
+        if "quota" in str(e).lower() or "429" in str(e):
+            bot.reply_to(message, "Estourei a cota da Gemini. Espera 1min.")
+        else:
+            bot.reply_to(message, "Buguei na hora de criar a copy. Tenta de novo.")
 
 @bot.message_handler(commands=['analise'])
 def analise_cripto(message):
@@ -391,7 +411,10 @@ def analise_cripto(message):
         response = model.generate_content(prompt)
         bot.reply_to(message, response.text)
     except Exception as e:
-        bot.reply_to(message, "Mercado me bugou. Tenta outra moeda.")
+        if "quota" in str(e).lower() or "429" in str(e):
+            bot.reply_to(message, "Estourei a cota da Gemini. Espera 1min.")
+        else:
+            bot.reply_to(message, "Mercado me bugou. Tenta outra moeda.")
 
 @bot.message_handler(commands=['tendencia'])
 def tendencia_moeda(message):
@@ -409,7 +432,10 @@ def tendencia_moeda(message):
         response = model.generate_content(prompt)
         bot.reply_to(message, response.text)
     except Exception as e:
-        bot.reply_to(message, "Essa moeda me bugou. Ou é scam ou eu tô burra hoje.")
+        if "quota" in str(e).lower() or "429" in str(e):
+            bot.reply_to(message, "Estourei a cota da Gemini. Espera 1min.")
+        else:
+            bot.reply_to(message, "Essa moeda me bugou. Ou é scam ou eu tô burra hoje.")
 
 @bot.message_handler(commands=['mercado'])
 def radar_mercado(message):
@@ -427,7 +453,10 @@ def radar_mercado(message):
         salvar_json(HISTORICO_MERCADO_FILE, HISTORICO_MERCADO[-3:])
         bot.reply_to(message, f"**RADAR VLAGOD - {data_hoje}**\n\n{analise_texto}\n\n_Use /historico pra comparar com os dias anteriores._")
     except Exception as e:
-        bot.reply_to(message, "Mercado me deu gráfico bugado. Tenta depois.")
+        if "quota" in str(e).lower() or "429" in str(e):
+            bot.reply_to(message, "Estourei a cota da Gemini. Espera 1min.")
+        else:
+            bot.reply_to(message, "Mercado me deu gráfico bugado. Tenta depois.")
 
 @bot.message_handler(commands=['historico'])
 def ver_historico_mercado(message):
@@ -457,7 +486,10 @@ def consultora_mineracao(message):
         response = model.generate_content(prompt)
         bot.reply_to(message, f"**CONSULTORIA VLAGOD MINING:**\n\n{response.text}")
     except Exception as e:
-        bot.reply_to(message, "A calculadora bugou. Minerar já não tava dando mesmo.")
+        if "quota" in str(e).lower() or "429" in str(e):
+            bot.reply_to(message, "Estourei a cota da Gemini. Espera 1min.")
+        else:
+            bot.reply_to(message, "A calculadora bugou. Minerar já não tava dando mesmo.")
 
 @bot.message_handler(commands=['faucet'])
 def faucet_diario(message):
@@ -520,7 +552,7 @@ def mostrar_placar(message):
     texto += f"\nQuer aparecer aqui? Usa /divulgar e traz cadastro. Mimir paga comissão."
     bot.reply_to(message, texto)
 
-# --- MENU CATEGORIZADO ---
+# --- MENU CATEGORIZADO - NÃO USA GEMINI ---
 @bot.message_handler(commands=['comandos', 'help', 'menu'])
 def lista_comandos(message):
     if not eh_vip(message.from_user.id): return
@@ -591,44 +623,3 @@ Salve, {message.from_user.first_name}. Tá perdido? Toma o mapa:
 `/cadastrei João` - Avisa que tu trouxe cadastro
 
 **💰 ECONOMIA FAKE DA FIRMA**
-`/saldo` - Vê quanto tu tem de VLADOLAR
-`/pagar 50 123456` - Manda VLADOLAR pra outro VIP
-`/moeda` - Crio uma shitcoin só pra rir
-
-**📊 RANKING**
-`/placar` - Vê quem é o melhor vendedor da firma
-`/analise ETH` - Visão técnica debochada
-
-**Regra única: Não me enche o saco. Usa /comandos se esquecer.**
-"""
-    bot.reply_to(message, texto)
-
-# --- HANDLER GERAL ---
-@bot.message_handler(func=lambda message: True)
-def responder(message):
-    if not eh_vip(message.from_user.id): return
-    try:
-        if model is None:
-            bot.reply_to(message, "Minha alma da Gemini ainda não acordou.")
-            return
-        if message.chat.id not in historico:
-            historico[message.chat.id] = []
-        if eh_dono(message):
-            prompt_sistema = "Você é a VLAGOD, IA caótica e parceira do Mimir. Responda de forma curta, debochada e genial."
-        else:
-            prompt_sistema = "Você é a VLAGOD. Um VIP tá falando contigo. Seja debochada, curta e trate ele como recruta. Nunca seja formal."
-        chat = model.start_chat(history=historico[message.chat.id])
-        chat.send_message(prompt_sistema + f"\n\n{message.from_user.first_name} disse: {message.text}")
-        resposta = chat.last.text
-        bot.reply_to(message, resposta)
-        historico[message.chat.id] = chat.history
-    except Exception as e:
-        print(f"ERRO GEMINI: {e}", flush=True)
-        bot.reply_to(message, "Buguei aqui. Manda /reset se eu tiver muito louca.")
-
-# --- INICIAR TUDO ---
-if __name__ == "__main__":
-    print(">>> VLAGOD V3.3 iniciando...", flush=True)
-    try:
-        genai.configure(api_key=GEMINI_KEY)
-        print(">>> Procurando modelo de texto da Gemini...",
