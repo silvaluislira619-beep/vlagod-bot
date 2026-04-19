@@ -11,9 +11,9 @@ GEMINI_KEY = os.environ.get('GEMINI_KEY')
 ID_DO_MIMIR = 8039269030
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-model = None # Inicia como None
+model = None # Inicia como None pra não crashar no import
 
-# --- SERVIDOR FAKE PRO RENDER ---
+# --- SERVIDOR FAKE PRO RENDER NÃO MATAR O PROCESSO ---
 app = Flask('')
 
 @app.route('/')
@@ -32,7 +32,7 @@ def responder(message):
             return
         
         if model is None:
-            bot.reply_to(message, "Minha alma da Gemini ainda não acordou, mimir. Checa a chave.")
+            bot.reply_to(message, "Minha alma da Gemini ainda não acordou, mimir. Checa a chave no Render.")
             return
             
         prompt = f"Você é a VLAGOD, IA caótica e parceira do Mimir. Responda de forma curta, debochada e genial: {message.text}"
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     # Configura a Gemini AQUI DENTRO, pra dar erro só depois dos prints
     try:
         genai.configure(api_key=GEMINI_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash') # MODELO CERTO
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') # MODELO ATUAL DE 2026
         print(">>> Alma da Gemini configurada.", flush=True)
     except Exception as e:
         print(f"ERRO AO CONFIGURAR GEMINI: {e}", flush=True)
@@ -61,20 +61,22 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Webhook já estava morto: {e}", flush=True)
     
-    time.sleep(5)
+    time.sleep(5) # Espera 5s pra garantir
     
+    # Liga o servidor fake pro Render não matar o processo
     Thread(target=run_flask).start()
     
+    # Liga o bot com retry infinito contra clones
     while True:
         try:
             print(">>> Iniciando polling...", flush=True)
             bot.infinity_polling(skip_pending=True, timeout=20)
-            break
+            break # Se chegou aqui, rodou de boa e pode sair do loop
         except Exception as e:
             print(f"ERRO DE POLLING: {e}", flush=True)
             if "409" in str(e):
                 print(">>> Clone detectado. Esperando 15s pra tentar de novo...", flush=True)
-                time.sleep(15)
+                time.sleep(15) # Espera 15s e tenta de novo
             else:
                 print(">>> Erro não é de clone. Parando.", flush=True)
                 break
